@@ -56,7 +56,9 @@ export default function AdminLeaderboardPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, loadData)
       .subscribe()
 
-    return () => supabase.removeChannel(channel)
+    return () => {
+	  void supabase.removeChannel(channel)
+	}
   }, [])
 
   const loadData = async () => {
