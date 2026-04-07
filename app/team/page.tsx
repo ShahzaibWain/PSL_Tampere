@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import TopNav from '../components/TopNav'
 
+const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
+
 type Profile = {
   id: string
   full_name: string
@@ -84,7 +86,7 @@ export default function TeamPage() {
         .eq('team_id', profileData.team_id)
         .order('id', { ascending: true })
 
-      setTeam(teamData)
+      setTeam(isHiddenTeam(teamData) ? null : teamData)
       setTeamPlayers((wonPlayers as any) || [])
       setLoading(false)
     }

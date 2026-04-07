@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import TopNav from '../components/TopNav'
+import PlayerMetaBadges from '../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../lib/format'
+
+const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
 type Player = {
   id: number
@@ -14,6 +17,8 @@ type Player = {
   sold_to_team_id?: number | null
   status: string
   image_url?: string | null
+  country?: string | null
+  availability?: string | null
 }
 
 type Team = {
@@ -29,18 +34,30 @@ export default function PlayersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'sold' | 'unsold'>('all')
   const [loading, setLoading] = useState(true)
 
+  const links = [
+    { label: 'Admin Home', href: '/admin' },
+    { label: 'Auction', href: '/admin/auction' },
+    { label: 'Live Screen', href: '/admin/live' },
+    { label: 'Leaderboard', href: '/admin/leaderboard' },
+    { label: 'Auction History', href: '/admin/history' },
+    { label: 'Registered Players', href: '/players' },
+  ]
+
   const loadData = async () => {
     setLoading(true)
 
     const { data: playersData } = await supabase
       .from('players')
-      .select('id, name, category, base_price, sold_price, sold_to_team_id, status, image_url')
+      .select('id, name, category, base_price, sold_price, sold_to_team_id, status, image_url, country, availability')
       .order('id', { ascending: true })
 
-    const { data: teamsData } = await supabase.from('teams').select('id, name, logo_url').order('id', { ascending: true })
+    const { data: teamsData } = await supabase
+      .from('teams')
+      .select('id, name, logo_url')
+      .order('id', { ascending: true })
 
     setPlayers((playersData as Player[]) || [])
-    setTeams((teamsData as Team[]) || [])
+    setTeams((((teamsData as Team[]) || [])).filter((team: any) => !isHiddenTeam(team)))
     setLoading(false)
   }
 
@@ -64,12 +81,15 @@ export default function PlayersPage() {
 
   const getTeam = (teamId?: number | null) => {
     if (!teamId) return null
-    return teams.find((team) => team.id === teamId) || null
+    return teams.find((team) => team.id === teamId && !isHiddenTeam(team)) || null
   }
 
   const filteredPlayers = useMemo(() => {
     let result = [...players]
-    if (statusFilter !== 'all') result = result.filter((player) => player.status === statusFilter)
+
+    if (statusFilter !== 'all') {
+      result = result.filter((player) => player.status === statusFilter)
+    }
 
     const q = search.trim().toLowerCase()
     if (q) {
@@ -77,7 +97,9 @@ export default function PlayersPage() {
         (player) =>
           player.name.toLowerCase().includes(q) ||
           (player.category || '').toLowerCase().includes(q) ||
-          player.status.toLowerCase().includes(q)
+          (player.country || '').toLowerCase().includes(q) ||
+          (player.availability || '').toLowerCase().includes(q) ||
+          (player.status || '').toLowerCase().includes(q)
       )
     }
 
@@ -90,14 +112,24 @@ export default function PlayersPage() {
     return 'bg-slate-100 text-slate-700'
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-100 flex items-center justify-center">Loading players...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        Loading players...
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="rounded-3xl bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 shadow-lg">
           <div className="flex items-center gap-4">
-            <img src="/team-logos/psl.png" alt="PSL" className="h-16 w-16 rounded-full bg-white object-contain p-1" />
+            <img
+              src="/team-logos/psl.png"
+              alt="PSL"
+              className="h-16 w-16 rounded-full bg-white object-contain p-1"
+            />
             <div>
               <p className="text-sm uppercase tracking-[0.25em] text-slate-300">PSL 2026</p>
               <h1 className="text-3xl font-bold">Registered Players</h1>
@@ -105,24 +137,37 @@ export default function PlayersPage() {
           </div>
         </div>
 
-        <TopNav title="Players" subtitle="Search and filter all registered players" />
+        <TopNav
+          title="Players"
+          subtitle="Search and filter all registered players"
+          links={links}
+        />
 
         <div className="rounded-3xl bg-white p-6 shadow-sm border border-slate-200">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-2xl font-bold text-slate-900">Player List</h2>
-              <p className="mt-1 text-slate-500">Filter by sold or unsold status, or search by name and category</p>
+              <p className="mt-1 text-slate-500">
+                Filter by sold or unsold status, or search by name, category, country, and availability
+              </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by player, category, or status" className="w-full sm:w-80 rounded-xl border border-slate-300 px-4 py-2 text-slate-900 outline-none focus:border-blue-500" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by player, category, country, or availability"
+                className="w-full sm:w-96 rounded-xl border border-slate-300 px-4 py-2 text-slate-900 outline-none focus:border-blue-500"
+              />
 
               <div className="flex rounded-xl border border-slate-300 bg-slate-50 p-1">
                 {['all', 'sold', 'unsold'].map((status) => (
                   <button
                     key={status}
-                    onClick={() => setStatusFilter(status as any)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium ${statusFilter === status ? 'bg-blue-600 text-white' : 'text-slate-700'}`}
+                    onClick={() => setStatusFilter(status as 'all' | 'sold' | 'unsold')}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${
+                      statusFilter === status ? 'bg-blue-600 text-white' : 'text-slate-700'
+                    }`}
                   >
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </button>
@@ -134,42 +179,78 @@ export default function PlayersPage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredPlayers.map((player) => {
               const soldTeam = getTeam(player.sold_to_team_id)
+
               return (
                 <div key={player.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex gap-4">
-                    <div className="h-24 w-24 overflow-hidden rounded-2xl bg-white flex items-center justify-center">
-                      {player.image_url ? <img src={player.image_url} alt={player.name} className="h-full w-full object-cover" /> : <span className="text-xs text-slate-500">No Image</span>}
+                    <div className="h-24 w-24 overflow-hidden rounded-2xl bg-white flex items-center justify-center shrink-0">
+                      {player.image_url ? (
+                        <img
+                          src={player.image_url}
+                          alt={player.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-500">No Image</span>
+                      )}
                     </div>
 
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-xl font-bold text-slate-900">{player.name}</h3>
+                        <div className="min-w-0">
+                          <h3 className="text-xl font-bold text-slate-900 break-words">{player.name}</h3>
                           <p className="text-sm text-slate-500">{player.category}</p>
                         </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] ${statusBadge(player.status)}`}>{player.status}</span>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] ${statusBadge(
+                            player.status
+                          )}`}
+                        >
+                          {player.status}
+                        </span>
                       </div>
+
+                      <PlayerMetaBadges
+                        country={player.country}
+                        availability={player.availability}
+                      />
 
                       <div className="mt-3 grid gap-2">
                         <div>
                           <p className="text-sm text-slate-500">Base Price</p>
-                          <p className="font-semibold text-slate-900">{formatMoneyWords(player.base_price)}</p>
+                          <p className="font-semibold text-slate-900">
+                            {formatMoneyWords(player.base_price)}
+                          </p>
                         </div>
 
                         {player.status === 'sold' ? (
                           <>
                             <div>
                               <p className="text-sm text-slate-500">Sold Price</p>
-                              <p className="font-semibold text-emerald-600">{formatMoneyWords(player.sold_price)}</p>
+                              <p className="font-semibold text-emerald-600">
+                                {formatMoneyWords(player.sold_price || 0)}
+                              </p>
                             </div>
+
                             <div className="flex items-center gap-2">
-                              <img src={soldTeam?.logo_url || '/team-logos/psl.png'} alt={soldTeam?.name || 'Team'} className="h-8 w-8 rounded-full bg-white object-contain p-1" />
-                              <p className="text-sm font-medium text-slate-700">{soldTeam?.name || 'Unknown Team'}</p>
+                              <img
+                                src={soldTeam?.logo_url || '/team-logos/psl.png'}
+                                alt={soldTeam?.name || 'Team'}
+                                className="h-8 w-8 rounded-full bg-white object-contain p-1"
+                              />
+                              <p className="text-sm font-medium text-slate-700">
+                                {soldTeam?.name || 'Unknown Team'}
+                              </p>
                             </div>
                           </>
                         ) : null}
 
-                        {player.status === 'unsold' ? <p className="text-sm font-medium text-amber-700">This player was marked unsold.</p> : null}
+                        {player.status === 'unsold' ? (
+                          <p className="text-sm font-medium text-amber-700">
+                            This player is currently in the unsold pool.
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -177,6 +258,12 @@ export default function PlayersPage() {
               )
             })}
           </div>
+
+          {filteredPlayers.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
+              No players found for the current filters.
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

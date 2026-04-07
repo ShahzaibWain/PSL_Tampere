@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import PlayerMetaBadges from '../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../lib/format'
+
+const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
 const BASE_PRICE = 5_000_000
 
@@ -120,7 +123,7 @@ export default function LivePage() {
       .eq('id', profile.team_id)
       .single()
 
-    setTeam(teamData)
+    setTeam(isHiddenTeam(teamData) ? null : teamData)
 
     const { data: auctionData } = await supabase
       .from('auction_state')
@@ -156,7 +159,7 @@ export default function LivePage() {
         .order('id', { ascending: false })
         .limit(8)
 
-      setRecentBids(bidsData || [])
+      setRecentBids((bidsData || []).filter((bid: any) => !isHiddenTeam(bid.teams)))
     } else {
       setPlayer(null)
       setRecentBids([])
@@ -169,7 +172,7 @@ export default function LivePage() {
         .eq('id', auctionData.current_highest_team_id)
         .single()
 
-      setLeadingTeam(leadTeam)
+      setLeadingTeam(isHiddenTeam(leadTeam) ? null : leadTeam)
     } else {
       setLeadingTeam(null)
     }
@@ -185,6 +188,8 @@ export default function LivePage() {
           id,
           name,
           category,
+          country,
+          availability,
           image_url
         )
       `)
@@ -364,6 +369,7 @@ export default function LivePage() {
                     <div>
                       <p className="text-sm text-slate-500">Category</p>
                       <p className="text-xl font-semibold text-slate-900">{player.category}</p>
+                      <PlayerMetaBadges country={player.country} availability={player.availability} />
                     </div>
 
                     <div>
@@ -559,6 +565,7 @@ export default function LivePage() {
                           <p className="text-sm text-slate-500">
                             {tp.players?.category || 'Unknown Category'}
                           </p>
+                          <PlayerMetaBadges country={tp.players?.country} availability={tp.players?.availability} />
                           <p className="text-sm text-slate-500">
                             Bought Price: {formatMoneyWords(tp.bought_price)}
                           </p>

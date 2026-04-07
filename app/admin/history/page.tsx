@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import TopNav from '../../components/TopNav'
+import PlayerMetaBadges from '../../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../../lib/format'
+
+const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
 const links = [
   { label: 'Admin Home', href: '/admin' },
@@ -40,7 +43,7 @@ export default function AdminHistoryPage() {
 
   const loadData = async () => {
     const { data: teamsData } = await supabase.from('teams').select('id, name, logo_url').order('id', { ascending: true })
-    setTeamsMap(Object.fromEntries((teamsData || []).map((item: any) => [item.id, item])))
+    setTeamsMap(Object.fromEntries((teamsData || []).filter((item: any) => !isHiddenTeam(item)).map((item: any) => [item.id, item])))
 
     const { data: historyData, error } = await supabase
       .from('auction_events')
@@ -52,7 +55,7 @@ export default function AdminHistoryPage() {
       setHistoryReady(false)
       const { data: fallbackPlayers } = await supabase
         .from('players')
-        .select('id, name, category, image_url, sold_price, sold_to_team_id, status')
+        .select('id, name, category, country, availability, image_url, sold_price, sold_to_team_id, status')
         .in('status', ['sold', 'unsold'])
         .order('id', { ascending: false })
 
@@ -75,7 +78,7 @@ export default function AdminHistoryPage() {
 
     const playerIds = Array.from(new Set((historyData || []).map((item: any) => item.player_id).filter(Boolean)))
     const { data: playersData } = playerIds.length
-      ? await supabase.from('players').select('id, name, category, image_url, status').in('id', playerIds)
+      ? await supabase.from('players').select('id, name, category, country, availability, image_url, status').in('id', playerIds)
       : { data: [] as any[] }
 
     setPlayersMap(Object.fromEntries(((playersData as any[]) || []).map((item) => [item.id, item])))
@@ -94,6 +97,8 @@ export default function AdminHistoryPage() {
       return (
         (player?.name || '').toLowerCase().includes(q) ||
         (player?.category || '').toLowerCase().includes(q) ||
+        (player?.country || '').toLowerCase().includes(q) ||
+        (player?.availability || '').toLowerCase().includes(q) ||
         (team?.name || '').toLowerCase().includes(q) ||
         (event.event_type || '').toLowerCase().includes(q)
       )
@@ -185,6 +190,7 @@ export default function AdminHistoryPage() {
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">{player?.name || `Player #${event.player_id}`}</h2>
                     <p className="text-sm text-slate-500">{player?.category || '-'}</p>
+                    <PlayerMetaBadges country={player?.country} availability={player?.availability} />
                   </div>
                 </div>
 
