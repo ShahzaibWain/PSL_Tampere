@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { formatMoneyWords } from '../../../lib/format'
+import { requireAdminClient } from '../../../lib/auth-guards'
 
 const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
@@ -16,6 +17,8 @@ export default function AdminLiveScreenPage() {
   const [teamPlayers, setTeamPlayers] = useState<any[]>([])
   const [soldPlayers, setSoldPlayers] = useState<any[]>([])
   const [selectedTeam, setSelectedTeam] = useState<any | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   const countdownStartedRef = useRef(false)
   const lastLeaderIdRef = useRef<number | null>(null)
@@ -56,7 +59,16 @@ export default function AdminLiveScreenPage() {
   }, [])
 
   useEffect(() => {
-    void loadAll()
+    const init = async () => {
+      const result = await requireAdminClient()
+      if (!result.ok) return
+
+      setAuthorized(true)
+      setCheckingAuth(false)
+      await loadAll()
+    }
+
+    void init()
 
     const channel = supabase
       .channel('admin-live-screen')
@@ -89,8 +101,8 @@ export default function AdminLiveScreenPage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
-    }
+	  void supabase.removeChannel(channel)
+	}
   }, [])
 
   useEffect(() => {
@@ -271,6 +283,16 @@ export default function AdminLiveScreenPage() {
 
   const timerLabel = `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`
   const currentBid = auctionState?.current_highest_bid || currentPlayer?.base_price || 0
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-700">
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1e293b,_#020617)] p-8 text-white">

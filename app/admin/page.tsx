@@ -1,10 +1,37 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import TopNav from '../components/TopNav'
 import { dashboardLinks } from '../../lib/dashboard-links'
+import { requireAdminClient } from '../../lib/auth-guards'
 
 export default function AdminHomePage() {
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
+
+  useEffect(() => {
+    const init = async () => {
+      const result = await requireAdminClient()
+      if (!result.ok) return
+
+      setAuthorized(true)
+      setCheckingAuth(false)
+    }
+
+    void init()
+  }, [])
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
+
   return (
     <div className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-7xl space-y-6">

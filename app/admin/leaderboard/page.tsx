@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 import TopNav from '../../components/TopNav'
 import PlayerMetaBadges from '../../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../../lib/format'
+import { requireAdminClient } from '../../../lib/auth-guards'
 
 const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
@@ -45,9 +46,20 @@ export default function AdminLeaderboardPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayerRow[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
-    void loadData()
+    const init = async () => {
+      const result = await requireAdminClient()
+      if (!result.ok) return
+
+      setAuthorized(true)
+      setCheckingAuth(false)
+      await loadData()
+    }
+
+    void init()
 
     const channel = supabase
       .channel('leaderboard-live')
@@ -143,6 +155,16 @@ export default function AdminLeaderboardPage() {
     link.click()
     URL.revokeObjectURL(url)
   }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-700">
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">

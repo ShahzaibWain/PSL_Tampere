@@ -1,42 +1,31 @@
 'use client'
 
-import { useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { useEffect, useState } from 'react'
+import { requireLoggedInClient } from '../../lib/auth-guards'
 
 export default function DashboardRedirect() {
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
   useEffect(() => {
     const checkUser = async () => {
-      const { data: userData } = await supabase.auth.getUser()
+      const result = await requireLoggedInClient()
+      if (!result.ok) return
 
-      if (!userData.user) {
-        window.location.href = '/'
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (!profile) {
-        window.location.href = '/'
-        return
-      }
-
-      if (profile.role === 'admin') {
+      if (result.profile.role === 'admin') {
         window.location.href = '/admin'
       } else {
         window.location.href = '/live'
       }
+
+      setCheckingAuth(false)
     }
 
-    checkUser()
+    void checkUser()
   }, [])
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-700">
-      Redirecting...
+      {checkingAuth ? 'Redirecting...' : 'Done'}
     </div>
   )
 }

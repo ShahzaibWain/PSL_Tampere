@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import TopNav from '../components/TopNav'
+import { requireOwnerClient } from '../../lib/auth-guards'
 
 const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
@@ -37,31 +38,18 @@ export default function TeamPage() {
   const [team, setTeam] = useState<Team | null>(null)
   const [teamPlayers, setTeamPlayers] = useState<TeamPlayer[]>([])
   const [loading, setLoading] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     const load = async () => {
-      const { data: userData } = await supabase.auth.getUser()
+      const result = await requireOwnerClient()
+      if (!result.ok) return
 
-      if (!userData.user) {
-        window.location.href = '/'
-        return
-      }
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (!profileData) {
-        window.location.href = '/'
-        return
-      }
-
+      const profileData = result.profile
       setProfile(profileData)
 
       if (profileData.role !== 'owner' || !profileData.team_id) {
-        setLoading(false)
+        window.location.href = '/admin'
         return
       }
 
@@ -88,6 +76,7 @@ export default function TeamPage() {
 
       setTeam(isHiddenTeam(teamData) ? null : teamData)
       setTeamPlayers((wonPlayers as any) || [])
+      setAuthorized(true)
       setLoading(false)
     }
 
@@ -101,6 +90,8 @@ export default function TeamPage() {
       </div>
     )
   }
+
+  if (!authorized) return null
 
   if (!profile || profile.role !== 'owner') {
     return (

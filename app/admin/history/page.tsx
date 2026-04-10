@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 import TopNav from '../../components/TopNav'
 import PlayerMetaBadges from '../../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../../lib/format'
+import { requireAdminClient } from '../../../lib/auth-guards'
 
 const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
@@ -21,6 +22,8 @@ export default function AdminHistoryPage() {
   const [events, setEvents] = useState<any[]>([])
   const [playersMap, setPlayersMap] = useState<Record<number, any>>({})
   const [teamsMap, setTeamsMap] = useState<Record<number, any>>({})
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
   const [search, setSearch] = useState('')
   const [eventFilter, setEventFilter] = useState<'all' | 'sold' | 'unsold' | 'reopened'>('all')
   const [teamFilter, setTeamFilter] = useState<string>('all')
@@ -37,8 +40,8 @@ export default function AdminHistoryPage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
-    }
+	  void supabase.removeChannel(channel)
+	}
   }, [])
 
   const loadData = async () => {
@@ -94,7 +97,17 @@ export default function AdminHistoryPage() {
       const q = search.trim().toLowerCase()
       if (!q) return true
 
-      return (
+      if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-700">
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
+
+  return (
         (player?.name || '').toLowerCase().includes(q) ||
         (player?.category || '').toLowerCase().includes(q) ||
         (player?.country || '').toLowerCase().includes(q) ||

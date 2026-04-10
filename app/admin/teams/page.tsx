@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import TopNav from '../../components/TopNav'
+import { requireAdminClient } from '../../../lib/auth-guards'
 
 type Profile = {
   id: string
@@ -22,26 +23,14 @@ export default function AdminTeamsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     const load = async () => {
-      const { data: userData } = await supabase.auth.getUser()
+      const result = await requireAdminClient()
+      if (!result.ok) return
 
-      if (!userData.user) {
-        window.location.href = '/'
-        return
-      }
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (!profileData || profileData.role !== 'admin') {
-        window.location.href = '/live'
-        return
-      }
+      const profileData = result.profile
 
       const { data: teamsData } = await supabase
         .from('teams')
@@ -50,6 +39,7 @@ export default function AdminTeamsPage() {
 
       setProfile(profileData)
       setTeams(teamsData || [])
+      setAuthorized(true)
       setLoading(false)
     }
 
@@ -72,12 +62,14 @@ export default function AdminTeamsPage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
-    }
+	  void supabase.removeChannel(channel)
+	}
   }, [])
 
   if (loading) {
-    return (
+    if (!authorized) return null
+
+  return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         Loading teams...
       </div>

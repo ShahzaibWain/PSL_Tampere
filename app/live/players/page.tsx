@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../lib/supabase'
-import TopNav from '../components/TopNav'
-import PlayerMetaBadges from '../components/PlayerMetaBadges'
-import { formatMoneyWords } from '../../lib/format'
-import { requireAdminClient } from '../../lib/auth-guards'
+import { supabase } from '../../../lib/supabase'
+import TopNav from '../../components/TopNav'
+import PlayerMetaBadges from '../../components/PlayerMetaBadges'
+import { formatMoneyWords } from '../../../lib/format'
+import { requireOwnerClient } from '../../../lib/auth-guards'
 
-const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
+const isHiddenTeam = (team: any) =>
+  ((team?.name || '') as string).toLowerCase().includes('multan')
 
 type Player = {
   id: number
@@ -28,7 +29,7 @@ type Team = {
   logo_url?: string | null
 }
 
-export default function PlayersPage() {
+export default function OwnerPlayersPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [search, setSearch] = useState('')
@@ -38,12 +39,7 @@ export default function PlayersPage() {
   const [authorized, setAuthorized] = useState(false)
 
   const links = [
-    { label: 'Admin Home', href: '/admin' },
-    { label: 'Auction', href: '/admin/auction' },
-    { label: 'Live Screen', href: '/admin/live' },
-    { label: 'Leaderboard', href: '/admin/leaderboard' },
-    { label: 'Auction History', href: '/admin/history' },
-    { label: 'Registered Players', href: '/players' },
+    { label: 'Back to Live Auction', href: '/live' },
   ]
 
   const loadData = async () => {
@@ -51,7 +47,9 @@ export default function PlayersPage() {
 
     const { data: playersData } = await supabase
       .from('players')
-      .select('id, name, category, base_price, sold_price, sold_to_team_id, status, image_url, country, availability')
+      .select(
+        'id, name, category, base_price, sold_price, sold_to_team_id, status, image_url, country, availability'
+      )
       .order('id', { ascending: true })
 
     const { data: teamsData } = await supabase
@@ -66,7 +64,7 @@ export default function PlayersPage() {
 
   useEffect(() => {
     const init = async () => {
-      const result = await requireAdminClient()
+      const result = await requireOwnerClient()
       if (!result.ok) return
 
       setAuthorized(true)
@@ -77,7 +75,7 @@ export default function PlayersPage() {
     void init()
 
     const channel = supabase
-      .channel('players-page-live')
+      .channel('owner-players-page-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, async () => {
         await loadData()
       })
@@ -86,9 +84,9 @@ export default function PlayersPage() {
       })
       .subscribe()
 
-	return () => {
-	  void supabase.removeChannel(channel)
-	}
+    return () => {
+      void supabase.removeChannel(channel)
+    }
   }, [])
 
   const getTeam = (teamId?: number | null) => {
@@ -160,8 +158,8 @@ export default function PlayersPage() {
         </div>
 
         <TopNav
-          title="Players"
-          subtitle="Search and filter all registered players"
+          title="Registered Players"
+          subtitle="Owner view of all registered players"
           links={links}
         />
 
@@ -170,7 +168,7 @@ export default function PlayersPage() {
             <div>
               <h2 className="text-2xl font-bold text-slate-900">Player List</h2>
               <p className="mt-1 text-slate-500">
-                Filter by sold or unsold status, or search by name, category, country, and availability
+                Search by player, category, country, availability, or filter sold and unsold players
               </p>
             </div>
 
@@ -240,39 +238,41 @@ export default function PlayersPage() {
 
                       <div className="mt-3 grid gap-2">
                         <div>
-                          <p className="text-sm text-slate-500">Base Price</p>
-                          <p className="font-semibold text-slate-900">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Base Price</p>
+                          <p className="text-lg font-semibold text-slate-900">
                             {formatMoneyWords(player.base_price)}
                           </p>
                         </div>
 
-                        {player.status === 'sold' ? (
+                        {player.status === 'sold' && soldTeam ? (
                           <>
                             <div>
-                              <p className="text-sm text-slate-500">Sold Price</p>
-                              <p className="font-semibold text-emerald-600">
+                              <p className="text-xs uppercase tracking-wide text-slate-500">Sold To</p>
+                              <div className="mt-1 flex items-center gap-2">
+                                <img
+                                  src={soldTeam.logo_url || '/team-logos/psl.png'}
+                                  alt={soldTeam.name}
+                                  className="h-8 w-8 rounded-full bg-white object-contain p-1"
+                                />
+                                <p className="font-medium text-slate-900">{soldTeam.name}</p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-slate-500">Sold Price</p>
+                              <p className="text-lg font-semibold text-emerald-700">
                                 {formatMoneyWords(player.sold_price || 0)}
                               </p>
                             </div>
-
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={soldTeam?.logo_url || '/team-logos/psl.png'}
-                                alt={soldTeam?.name || 'Team'}
-                                className="h-8 w-8 rounded-full bg-white object-contain p-1"
-                              />
-                              <p className="text-sm font-medium text-slate-700">
-                                {soldTeam?.name || 'Unknown Team'}
-                              </p>
-                            </div>
                           </>
-                        ) : null}
-
-                        {player.status === 'unsold' ? (
-                          <p className="text-sm font-medium text-amber-700">
-                            This player is currently in the unsold pool.
-                          </p>
-                        ) : null}
+                        ) : (
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Auction Status</p>
+                            <p className="font-medium text-slate-800">
+                              {player.status === 'unsold' ? 'Available / Unsold' : player.status}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -281,11 +281,11 @@ export default function PlayersPage() {
             })}
           </div>
 
-          {filteredPlayers.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-              No players found for the current filters.
+          {filteredPlayers.length === 0 && (
+            <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-slate-500">
+              No players match your filters.
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </div>

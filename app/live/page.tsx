@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import PlayerMetaBadges from '../components/PlayerMetaBadges'
 import { formatMoneyWords } from '../../lib/format'
+import { requireOwnerClient } from '../../lib/auth-guards'
 
 const isHiddenTeam = (team: any) => ((team?.name || '') as string).toLowerCase().includes('multan')
 
@@ -23,6 +25,8 @@ export default function LivePage() {
   const [leadingTeam, setLeadingTeam] = useState<any>(null)
   const [recentBids, setRecentBids] = useState<any[]>([])
   const [timeLeft, setTimeLeft] = useState(0)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   const countdownStartedRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -32,7 +36,16 @@ export default function LivePage() {
   }, [])
 
   useEffect(() => {
-    loadData()
+    const init = async () => {
+      const result = await requireOwnerClient()
+      if (!result.ok) return
+
+      setAuthorized(true)
+      setCheckingAuth(false)
+      await loadData()
+    }
+
+    void init()
 
     const channel = supabase
       .channel('live-bidding')
@@ -43,7 +56,7 @@ export default function LivePage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      void supabase.removeChannel(channel)
     }
   }, [])
 
@@ -116,6 +129,11 @@ export default function LivePage() {
       .select('*')
       .eq('id', userData.user.id)
       .single()
+
+    if (!profile || profile.role !== 'owner' || !profile.team_id) {
+      window.location.href = '/admin'
+      return
+    }
 
     const { data: teamData } = await supabase
       .from('teams')
@@ -209,6 +227,11 @@ export default function LivePage() {
   const isMyTeamLeading = auction?.current_highest_team_id === team?.id
 
   const committedBid = isMyTeamLeading ? currentBid : 0
+
+  const maxAllowedBid = team
+    ? Math.max(team.budget_remaining - reserveIfWin, 0)
+    : 0
+
   const usableBudget = team
     ? Math.max(team.budget_remaining - reserveIfWin - committedBid, 0)
     : 0
@@ -219,8 +242,37 @@ export default function LivePage() {
     timeLeft > 0 &&
     !isMyTeamLeading
 
+  const squadFull = !!team && teamPlayers.length >= team.max_players
+
+  const canRaiseBy = (incrementMillions: number) => {
+    if (!canBid || squadFull || !team) return false
+    const newBid = currentBid + incrementMillions * 1_000_000
+    return newBid <= maxAllowedBid
+  }
+
+  const canBuyAtBase =
+    canBid &&
+    !auction?.current_highest_bid &&
+    !!player &&
+    !squadFull &&
+    player.base_price <= maxAllowedBid
+
+  const customBidMillions = parseInt(customBid || '0', 10)
+  const customBidAmount =
+    customBidMillions > 0 ? currentBid + customBidMillions * 1_000_000 : 0
+
+  const isCustomBidValid =
+    canBid &&
+    !squadFull &&
+    customBidMillions > 0 &&
+    customBidAmount <= maxAllowedBid
+
   const placeBid = async (incrementMillions: number) => {
     if (!canBid) return
+    if (squadFull) {
+      alert('Squad full')
+      return
+    }
 
     const increment = incrementMillions * 1_000_000
     const newBid = currentBid + increment
@@ -230,13 +282,8 @@ export default function LivePage() {
       return
     }
 
-    if (newBid > usableBudget) {
+    if (newBid > maxAllowedBid) {
       alert('Not enough live usable bidding budget')
-      return
-    }
-
-    if (teamPlayers.length >= team.max_players) {
-      alert('Squad full')
       return
     }
 
@@ -265,13 +312,17 @@ export default function LivePage() {
   const buyAtBase = async () => {
     if (!canBid) return
     if (auction.current_highest_bid) return
+    if (squadFull) {
+      alert('Squad full')
+      return
+    }
 
     if (player.base_price > team.budget_remaining) {
       alert('Not enough budget')
       return
     }
 
-    if (player.base_price > usableBudget) {
+    if (player.base_price > maxAllowedBid) {
       alert('Not enough live usable bidding budget')
       return
     }
@@ -299,9 +350,8 @@ export default function LivePage() {
   }
 
   const placeCustomBid = async () => {
-    const value = parseInt(customBid)
-    if (!value || value <= 0) return
-    await placeBid(value)
+    if (!isCustomBidValid) return
+    await placeBid(customBidMillions)
     setCustomBid('')
   }
 
@@ -311,6 +361,16 @@ export default function LivePage() {
   }
 
   const timerLabel = `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
 
   if (!team) return <div className="p-6">Loading...</div>
 
@@ -331,7 +391,14 @@ export default function LivePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/live/players"
+                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/20"
+              >
+                Registered Players
+              </Link>
+
               <div className="rounded-2xl bg-black/20 px-5 py-4 text-right">
                 <p className="text-sm text-slate-300">Timer</p>
                 <p className="text-3xl font-bold text-rose-300">{timerLabel}</p>
@@ -403,10 +470,18 @@ export default function LivePage() {
                       )}
                     </div>
 
-                    {!auction?.current_highest_bid && canBid && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-sm text-emerald-800">Max bid you can place right now</p>
+                      <p className="mt-1 text-2xl font-bold text-emerald-700">
+                        {formatMoneyWords(maxAllowedBid)}
+                      </p>
+                    </div>
+
+                    {!auction?.current_highest_bid && (
                       <button
                         onClick={buyAtBase}
-                        className="w-full rounded-xl bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700"
+                        disabled={!canBuyAtBase || loading}
+                        className="w-full rounded-xl bg-green-600 px-4 py-3 text-white font-semibold hover:bg-green-700 disabled:opacity-50"
                       >
                         Buy at Base Price ({formatMoneyWords(player.base_price)})
                       </button>
@@ -415,34 +490,51 @@ export default function LivePage() {
                     <div>
                       <p className="text-sm text-slate-500 mb-2">Quick Raise</p>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        {[1, 2, 5, 10].map((n) => (
-                          <button
-                            key={n}
-                            disabled={!canBid || loading}
-                            onClick={() => placeBid(n)}
-                            className="rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
-                          >
-                            +{n}M
-                          </button>
-                        ))}
+                        {[1, 2, 5, 10].map((n) => {
+                          const disabled = !canRaiseBy(n) || loading
+
+                          return (
+                            <button
+                              key={n}
+                              disabled={disabled}
+                              onClick={() => placeBid(n)}
+                              className="rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              +{n}M
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
 
                     <div className="flex gap-3">
                       <input
                         value={customBid}
-                        onChange={(e) => setCustomBid(e.target.value)}
-                        placeholder="Enter only number, e.g. 4"
+                        onChange={(e) => setCustomBid(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="Enter increment in millions, e.g. 4"
                         className="flex-1 rounded-xl border border-slate-300 px-4 py-3"
                       />
                       <button
                         onClick={placeCustomBid}
-                        disabled={!canBid || loading}
+                        disabled={!isCustomBidValid || loading}
                         className="rounded-xl bg-slate-900 px-5 py-3 text-white font-semibold hover:bg-black disabled:opacity-50"
                       >
                         Bid
                       </button>
                     </div>
+
+                    {customBidMillions > 0 && (
+                      <div className={`rounded-xl px-4 py-3 text-sm ${
+                        customBidAmount <= maxAllowedBid
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-rose-50 text-rose-700'
+                      }`}>
+                        Your bid would become {formatMoneyWords(customBidAmount)}.
+                        {customBidAmount > maxAllowedBid && (
+                          <> This is above your live usable bidding limit.</>
+                        )}
+                      </div>
+                    )}
 
                     {!canBid && (
                       <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
@@ -453,6 +545,18 @@ export default function LivePage() {
                           : isMyTeamLeading
                           ? 'You are currently leading.'
                           : 'Waiting for admin to start bidding.'}
+                      </div>
+                    )}
+
+                    {canBid && squadFull && (
+                      <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                        Your squad is already full, so bidding is disabled.
+                      </div>
+                    )}
+
+                    {canBid && !squadFull && currentBid >= maxAllowedBid && (
+                      <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        You cannot place a higher bid because the current price has already reached your maximum usable limit.
                       </div>
                     )}
                   </div>

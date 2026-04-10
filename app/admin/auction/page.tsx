@@ -6,6 +6,7 @@ import TopNav from '../../components/TopNav'
 import { formatMoneyWords } from '../../../lib/format'
 import ConfirmModal from '../../components/ConfirmModal'
 import PlayerMetaBadges from '../../components/PlayerMetaBadges'
+import { requireAdminClient } from '../../../lib/auth-guards'
 
 type Profile = { id: string; full_name: string; role: 'admin' | 'owner' }
 
@@ -71,31 +72,21 @@ export default function AdminAuctionPage() {
 
   const [forceTeamId, setForceTeamId] = useState('')
   const [forcePrice, setForcePrice] = useState('')
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     const load = async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) {
-        window.location.href = '/'
-        return
-      }
+      const result = await requireAdminClient()
+      if (!result.ok) return
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userData.user.id)
-        .single()
-
-      if (!profileData || profileData.role !== 'admin') {
-        window.location.href = '/live'
-        return
-      }
-
-      setProfile(profileData)
+      setProfile(result.profile)
+      setAuthorized(true)
+      setCheckingAuth(false)
       await loadAll()
     }
 
-    load()
+    void load()
 
     const channel = supabase
       .channel('admin-auction-live')
@@ -117,8 +108,8 @@ export default function AdminAuctionPage() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
-    }
+	  void supabase.removeChannel(channel)
+	}
   }, [])
 
   useEffect(() => {
