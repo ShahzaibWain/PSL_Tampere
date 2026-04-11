@@ -380,9 +380,13 @@ export default function AdminLiveScreenPage() {
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <img src="/team-logos/sponsor.png" alt="Sponsor" className="h-20 w-auto max-w-[220px] object-contain" />
-          </div>
+          <div className="flex justify-center mt-2 mb-4">
+			  <img
+				src="/team-logos/sponsor.png"
+				alt="Sponsor"
+				className="h-28 md:h-36 lg:h-40 w-auto object-contain drop-shadow-xl"
+			  />
+			</div>
 
           <div className="shrink-0 rounded-3xl bg-white/10 px-8 py-5 text-right backdrop-blur lg:justify-self-end">
             <p className="text-sm text-slate-300">Status</p>
