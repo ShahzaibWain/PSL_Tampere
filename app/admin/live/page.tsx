@@ -195,7 +195,8 @@ export default function AdminLiveScreenPage() {
           country,
           availability,
           image_url,
-          status
+          status,
+          playing_psl_first_time
         ),
         teams (
           id,
@@ -265,7 +266,8 @@ export default function AdminLiveScreenPage() {
       const squad = teamPlayers.filter((tp) => tp.team_id === team.id)
       const playersBought = squad.length
       const totalSpent = (team.budget_total || 0) - (team.budget_remaining || 0)
-      return { ...team, playersBought, totalSpent }
+      const hasFirstTimePlayer = squad.some((tp: any) => !!tp.players?.playing_psl_first_time)
+      return { ...team, playersBought, totalSpent, hasFirstTimePlayer }
     })
 
     rows.sort((a, b) => {
@@ -369,7 +371,7 @@ export default function AdminLiveScreenPage() {
       ) : null}
 
       <div className="mx-auto max-w-7xl space-y-8">
-        <div className="flex items-center justify-between gap-6">
+        <div className="grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
           <div className="flex min-w-0 items-center gap-5">
             <img src="/team-logos/psl.png" alt="PSL" className="h-20 w-20 rounded-full bg-white object-contain p-2" />
             <div className="min-w-0">
@@ -378,7 +380,11 @@ export default function AdminLiveScreenPage() {
             </div>
           </div>
 
-          <div className="shrink-0 rounded-3xl bg-white/10 px-8 py-5 text-right backdrop-blur">
+          <div className="flex justify-center">
+            <img src="/team-logos/sponsor.png" alt="Sponsor" className="h-20 w-auto max-w-[220px] object-contain" />
+          </div>
+
+          <div className="shrink-0 rounded-3xl bg-white/10 px-8 py-5 text-right backdrop-blur lg:justify-self-end">
             <p className="text-sm text-slate-300">Status</p>
             <p className="text-2xl font-bold capitalize">{auctionState?.status || 'idle'}</p>
             <p className="mt-3 text-sm text-slate-300">Timer</p>
@@ -406,6 +412,7 @@ export default function AdminLiveScreenPage() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {currentPlayer.country ? <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-medium text-slate-100">{currentPlayer.country}</span> : null}
                       <span className={`rounded-full px-3 py-1 text-sm font-medium ${(currentPlayer.availability || 'Available All Days').toLowerCase() === 'available all days' ? 'bg-emerald-300/20 text-emerald-200' : 'bg-amber-300/20 text-amber-200'}`}>{currentPlayer.availability || 'Available All Days'}</span>
+                      <span className={`rounded-full px-3 py-1 text-sm font-medium ${currentPlayer.playing_psl_first_time ? 'bg-violet-300/20 text-violet-200' : 'bg-slate-300/20 text-slate-200'}`}>PSL First Time: {currentPlayer.playing_psl_first_time ? 'Yes' : 'No'}</span>
                     </div>
                   </div>
 
@@ -472,6 +479,7 @@ export default function AdminLiveScreenPage() {
                           <div className="min-w-0">
                             <p className="truncate text-2xl font-bold">{team.name}</p>
                             <p className="text-sm text-slate-300">{team.playersBought} players • {formatMoneyWords(team.budget_remaining)} left</p>
+                            <p className={`text-sm font-semibold ${team.hasFirstTimePlayer ? 'text-emerald-300' : 'text-amber-300'}`}>★ First-time player: {team.hasFirstTimePlayer ? 'Yes' : 'No'}</p>
                           </div>
                         </div>
                         <p className="shrink-0 text-xl font-bold text-emerald-300">{formatMoneyWords(team.totalSpent)} spent</p>

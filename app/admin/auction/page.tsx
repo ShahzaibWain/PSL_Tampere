@@ -20,6 +20,7 @@ type Player = {
   sold_price?: number | null
   sold_to_team_id?: number | null
   image_url?: string | null
+  playing_psl_first_time?: boolean | null
   queue_order?: number | null
   auction_pool?: 'main' | 'end' | 'not_sold' | null
 }
@@ -58,6 +59,7 @@ export default function AdminAuctionPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [soldRecovery, setSoldRecovery] = useState<any[]>([])
+  const [allSoldRows, setAllSoldRows] = useState<any[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
@@ -165,16 +167,16 @@ export default function AdminAuctionPage() {
         supabase
           .from('team_players')
           .select(
-            `id, team_id, player_id, bought_price, created_at, players ( id, name, category, country, availability, image_url ), teams ( id, name, logo_url )`
+            `id, team_id, player_id, bought_price, created_at, players ( id, name, category, country, availability, image_url, playing_psl_first_time ), teams ( id, name, logo_url )`
           )
-          .order('id', { ascending: false })
-          .limit(12),
+.order('id', { ascending: false }),
       ])
 
     setPlayers((openPoolPlayers as Player[]) || [])
     setTeams((teamsData as Team[]) || [])
     setAuctionState(auctionData)
-    setSoldRecovery((rosterRows as any[]) || [])
+    setAllSoldRows((rosterRows as any[]) || [])
+    setSoldRecovery(((rosterRows as any[]) || []).slice(0, 12))
 
     if (auctionData?.current_player_id) {
       const [{ data: playerData }, { data: teamData }, { data: bidsData }] = await Promise.all([
@@ -240,6 +242,18 @@ export default function AdminAuctionPage() {
   const filteredMainPool = useMemo(() => filterPlayers(mainPool), [mainPool, search])
   const filteredEndPool = useMemo(() => filterPlayers(endPool), [endPool, search])
   const filteredNotSoldPool = useMemo(() => filterPlayers(notSoldPool), [notSoldPool, search])
+
+  const teamFirstTimeStatus = useMemo(() =>
+    activeTeams.map((team) => {
+      const teamSoldRows = allSoldRows.filter((row: any) => row.team_id === team.id)
+      const hasFirstTimePlayer = teamSoldRows.some((row: any) => !!row.players?.playing_psl_first_time)
+      return {
+        ...team,
+        hasFirstTimePlayer,
+        playersBought: teamSoldRows.length,
+      }
+    }),
+  [activeTeams, allSoldRows])
 
   const actionErrorHint = 'If this action says function not found, first run the Supabase SQL setup file.'
 
@@ -704,7 +718,7 @@ export default function AdminAuctionPage() {
       <h3 className="text-lg font-semibold text-gray-900">{player.name}</h3>
       <p className="mt-1 text-sm text-gray-600">Category: {player.category}</p>
       <p className="mt-1 text-sm text-gray-600">Base Price: {formatMoneyWords(player.base_price)}</p>
-      <PlayerMetaBadges country={player.country} availability={player.availability} />
+      <PlayerMetaBadges country={player.country} availability={player.availability} firstTimePsl={player.playing_psl_first_time} />
 
       <button
         onClick={() => pickPlayer(player.id)}
@@ -740,6 +754,10 @@ export default function AdminAuctionPage() {
           subtitle="Pick players, start bidding, manage timer, move players across pools, recover mistakes, and assign players manually when needed."
           links={links}
         />
+
+        <div className="flex justify-center">
+          <img src="/team-logos/sponsor.png" alt="Sponsor" className="h-16 w-auto max-w-[200px] object-contain" />
+        </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm border">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -872,6 +890,23 @@ export default function AdminAuctionPage() {
             </div>
           </div>
 
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {teamFirstTimeStatus.map((team) => (
+              <div key={team.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3">
+                  <img src={team.logo_url || '/team-logos/psl.png'} alt={team.name} className="h-10 w-10 rounded-full bg-white object-contain p-1" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-900">{team.name}</p>
+                    <p className="text-xs text-slate-500">{team.playersBought} player(s) bought</p>
+                  </div>
+                </div>
+                <p className={`mt-3 text-sm font-semibold ${team.hasFirstTimePlayer ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  First-time PSL player: {team.hasFirstTimePlayer ? 'Yes' : 'No'}
+                </p>
+              </div>
+            ))}
+          </div>
+
           {auctionState?.current_player_id && currentPlayer ? (
             <>
               <div className="mt-4 grid gap-4 lg:grid-cols-6">
@@ -879,7 +914,7 @@ export default function AdminAuctionPage() {
                   <p className="text-sm text-gray-600">Current Player</p>
                   <p className="mt-1 text-xl font-bold text-gray-900">{currentPlayer.name}</p>
                   <p className="text-sm text-gray-600">{currentPlayer.category}</p>
-                  <PlayerMetaBadges country={currentPlayer.country} availability={currentPlayer.availability} />
+                  <PlayerMetaBadges country={currentPlayer.country} availability={currentPlayer.availability} firstTimePsl={currentPlayer.playing_psl_first_time} />
                 </div>
 
                 <div className="rounded-xl bg-sky-50 p-4 border border-sky-100">
@@ -1104,7 +1139,7 @@ export default function AdminAuctionPage() {
                         {row.players?.name || `Player #${row.player_id}`}
                       </h3>
                       <p className="text-sm text-gray-600">{row.players?.category}</p>
-                      <PlayerMetaBadges country={row.players?.country} availability={row.players?.availability} />
+                      <PlayerMetaBadges country={row.players?.country} availability={row.players?.availability} firstTimePsl={row.players?.playing_psl_first_time} />
                     </div>
                   </div>
 

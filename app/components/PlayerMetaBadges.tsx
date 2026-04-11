@@ -1,11 +1,13 @@
 type PlayerMetaBadgesProps = {
   country?: string | null
   availability?: string | null
+  firstTimePsl?: boolean | null
 }
 
 export default function PlayerMetaBadges({
   country,
   availability,
+  firstTimePsl,
 }: PlayerMetaBadgesProps) {
   const value = availability?.trim() || 'Available All Days'
   const isAllDays = value.toLowerCase() === 'available all days'
@@ -27,6 +29,18 @@ export default function PlayerMetaBadges({
       >
         {value}
       </span>
+
+      {typeof firstTimePsl === 'boolean' ? (
+        <span
+          className={`rounded-full px-3 py-1 text-sm font-medium ${
+            firstTimePsl
+              ? 'bg-violet-100 text-violet-700'
+              : 'bg-slate-200 text-slate-700'
+          }`}
+        >
+          PSL First Time: {firstTimePsl ? 'Yes' : 'No'}
+        </span>
+      ) : null}
     </div>
   )
 }

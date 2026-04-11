@@ -15,6 +15,7 @@ type Player = {
   name: string
   category: string
   base_price: number
+  playing_psl_first_time?: boolean | null
   sold_price?: number | null
   sold_to_team_id?: number | null
   status: string
@@ -48,7 +49,7 @@ export default function OwnerPlayersPage() {
     const { data: playersData } = await supabase
       .from('players')
       .select(
-        'id, name, category, base_price, sold_price, sold_to_team_id, status, image_url, country, availability'
+        'id, name, category, base_price, sold_price, sold_to_team_id, status, image_url, country, availability, playing_psl_first_time'
       )
       .order('id', { ascending: true })
 
@@ -234,6 +235,7 @@ export default function OwnerPlayersPage() {
                       <PlayerMetaBadges
                         country={player.country}
                         availability={player.availability}
+                        firstTimePsl={player.playing_psl_first_time}
                       />
 
                       <div className="mt-3 grid gap-2">

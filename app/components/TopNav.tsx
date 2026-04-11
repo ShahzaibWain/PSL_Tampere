@@ -17,13 +17,21 @@ export default function TopNav({ title, subtitle, links = [] }: Props) {
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm border">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[1fr_auto_1fr] xl:items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
           {subtitle && <p className="mt-2 text-gray-600">{subtitle}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex justify-center xl:justify-center">
+          <img
+            src="/team-logos/sponsor.png"
+            alt="Sponsor"
+            className="h-16 w-auto max-w-[180px] object-contain"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 xl:justify-end">
           {links.map((link) => (
             <Link
               key={link.href}
