@@ -482,10 +482,10 @@ export default function LivePage() {
                       <p className="text-sm text-slate-500">Category</p>
                       <p className="text-xl font-semibold text-slate-900">{player.category}</p>
                       <PlayerMetaBadges
-                        country={player.country}
-                        availability={player.availability}
-                        playingPslFirstTime={player.playing_psl_first_time}
-                      />
+						  country={player.country}
+						  availability={player.availability}
+						  firstTimePsl={player.playing_psl_first_time}
+						/>
                     </div>
 
                     <div>
@@ -728,10 +728,10 @@ export default function LivePage() {
                             {tp.players?.category || 'Unknown Category'}
                           </p>
                           <PlayerMetaBadges
-                            country={tp.players?.country}
-                            availability={tp.players?.availability}
-                            playingPslFirstTime={tp.players?.playing_psl_first_time}
-                          />
+							  country={tp.players?.country}
+							  availability={tp.players?.availability}
+							  firstTimePsl={tp.players?.playing_psl_first_time}
+							/>
                           <p className="text-sm text-slate-500">
                             Bought Price: {formatMoneyWords(tp.bought_price)}
                           </p>
